@@ -189,3 +189,27 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Club Bot Server Online on Port ${PORT}`);
 });
+// ---- กรณีผู้ใช้พิมพ์ข้อความมา ----
+    if (event.type === "message" && event.message.type === "text") {
+      const text = event.message.text.trim().toLowerCase();
+      
+      if (text === "/help" || text === "help") {
+        await callLineApi('reply', {
+          replyToken: event.replyToken,
+          messages: [{ type: "text", text: "ยินดีต้อนรับ! กรุณากดปุ่มเปิดหน้า LIFF เพื่อเริ่มใช้งานระบบครับ" }]
+        });
+      }
+
+      // 🌟 เพิ่มโค้ดเช็ค Group ID ตรงนี้ครับ 🌟
+      if (text === "/groupid" || text === "ขอไอดีกลุ่ม") {
+        const groupId = event.source.groupId;
+        const replyText = groupId 
+          ? `รหัสกลุ่มนี้คือ:\n${groupId}` 
+          : "คุณต้องพิมพ์คำสั่งนี้ใน 'แชทกลุ่ม' เท่านั้นนะครับ (พิมพ์ในแชทส่วนตัวไม่ได้)";
+          
+        await callLineApi('reply', {
+          replyToken: event.replyToken,
+          messages: [{ type: "text", text: replyText }]
+        });
+      }
+    }
