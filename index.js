@@ -78,16 +78,16 @@ app.post("/api", async (req, res) => {
 
     console.log("Result from GAS:", result); 
 
-    // --- 🌟 จุดที่เพิ่มเข้ามาเพื่อแปลงฟอร์แมตข้อมูล ---
-    // ถ้า GAS ตอบกลับมาว่า status === 'success' ให้สร้างตัวแปร ok: true ส่งไปให้หน้าบ้าน
+    // เริ่มต้นตัวแปรโครงสร้างเพื่อให้หน้าบ้านอ่านง่าย
     let formattedResult = { ok: false, error: 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ' };
     
     if (result && result.status === 'success') {
       formattedResult = {
         ok: true,
-        task: result.data || {},     // เผื่อเป็นเคสสร้างงาน
-        users: result.data || [],    // เผื่อเป็นเคส listUsers
-        tasks: result.data || []     // เผื่อเป็นเคส myTasks
+        // แยกส่งข้อมูลกลับไปให้ตรงตามคำสั่ง (action) ที่หน้าบ้านต้องการแกะอ่าน
+        task: payload.action === 'createTask' ? (result.data || {}) : {},
+        users: payload.action === 'listUsers' ? (result.data || []) : [],
+        tasks: payload.action === 'myTasks' ? (result.data || []) : []
       };
     } else if (result && result.status === 'error') {
       formattedResult = {
@@ -95,13 +95,11 @@ app.post("/api", async (req, res) => {
         error: result.message || 'GAS หลังบ้านฟ้องว่ามี Error'
       };
     }
-    // ---------------------------------------------
 
     // ถ้าสร้างงานสำเร็จ และเป็นงานแบบ "เปิดรับอาสา" ให้ยิง Flex Message ลงกลุ่ม
-    // (เปลี่ยนจาก result.ok เป็น formattedResult.ok และดึงจาก formattedResult.task)
     if (payload.action === 'createTask' && formattedResult.ok && payload.assigneeMode === 'open') {
       const task = formattedResult.task;
-      const groupId = result.groupId; // รหัสกลุ่มจากแท็บ Config ใน Google Sheets (ถ้ามีแนบมา)
+      const groupId = result.groupId; 
       
       if (groupId) {
         const flexMsg = buildOpenTaskFlex(task);
@@ -110,7 +108,7 @@ app.post("/api", async (req, res) => {
       }
     }
 
-    // ตอบกลับผลลัพธ์ที่แปลงฟอร์แมตแล้วให้หน้าเว็บ LIFF
+    // ส่งชุดข้อมูลที่ประกอบร่างตรงกับหน้าบ้านต้องการกลับไป
     res.json(formattedResult);
 
   } catch (error) {
