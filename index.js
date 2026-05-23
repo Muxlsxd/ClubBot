@@ -20,35 +20,13 @@ app.get("/", (req, res) => {
 
 app.post(
   "/webhook",
-  line.middleware(config),
-  async (req, res) => {
-    try {
-      const events = req.body.events;
+  express.json(),
+  (req, res) => {
 
-      for (const event of events) {
+    console.log("===== WEBHOOK =====");
+    console.log(JSON.stringify(req.body, null, 2));
 
-        if (event.type !== "message") continue;
-        if (event.message.type !== "text") continue;
-
-        const text = event.message.text;
-
-        await client.replyMessage({
-          replyToken: event.replyToken,
-          messages: [
-            {
-              type: "text",
-              text: `คุณพิมพ์ว่า: ${text}`
-            }
-          ]
-        });
-      }
-
-      res.sendStatus(200);
-
-    } catch (err) {
-      console.error(err);
-      res.sendStatus(500);
-    }
+    res.sendStatus(200);
   }
 );
 
