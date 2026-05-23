@@ -72,33 +72,37 @@ app.post("/api", async (req, res) => {
   try {
     const payload = req.body;
     
-    // โยนข้อมูลจากหน้าเว็บส่งไปให้ Google Apps Script บันทึกลง Sheet
+    // ส่งข้อมูลไปหา Google Apps Script
     const gasRes = await axios.post(GAS_URL, payload);
     const result = gasRes.data;
 
-    // ถ้าสร้างงานสำเร็จ และเป็นงานแบบ "เปิดรับอาสา" ให้เอา Group ID ที่ได้มา ยิง Flex Message ลงกลุ่ม
+    console.log("Result from GAS:", result); // เปิดคอมเมนต์ตรงนี้เพื่อดู Log บน Render ว่า GAS ตอบอะไรกลับมา
+
+    // ตรวจสอบโครงสร้างเพื่อป้องกันอาการ undefined
+    if (!result || typeof result !== 'object') {
+      return res.json({ ok: false, error: 'ข้อมูลตอบกลับจาก Google Sheets ไม่ถูกต้อง' });
+    }
+
+    // ถ้าสร้างงานสำเร็จ และเป็นงานแบบ "เปิดรับอาสา" ให้ยิง Flex Message ลงกลุ่ม
     if (payload.action === 'createTask' && result.ok && payload.assigneeMode === 'open') {
       const task = result.task;
-      const groupId = result.groupId; // รหัสกลุ่มจากแท็บ Config ใน Google Sheets
+      const groupId = result.groupId; 
       
       if (groupId) {
         const flexMsg = buildOpenTaskFlex(task);
         await callLineApi('push', { to: groupId, messages: [flexMsg] });
-        console.log(`✅ ส่งการ์ดแจ้งเตือนไปที่กลุ่ม ${task.Department} สำเร็จ`);
-      } else {
-        console.log(`⚠️ ไม่พบ Group ID สำหรับฝ่าย ${task.Department} ใน Sheet`);
+        console.log(`✅ ส่งการ์ดแจ้งเตือนไปที่กลุ่มสำเร็จ`);
       }
     }
 
-    // ตอบกลับผลลัพธ์ให้หน้าเว็บ LIFF แสดงให้ผู้ใช้เห็น
+    // ตอบกลับผลลัพธ์ให้หน้าเว็บ LIFF (ต้องมั่นใจว่าเป็น JSON Object เสมอ)
     res.json(result);
 
   } catch (error) {
     console.error("❌ API Error:", error.message);
-    res.status(500).json({ ok: false, error: 'ระบบขัดข้อง' });
+    res.status(500).json({ ok: false, error: error.message || 'ระบบหลังบ้านขัดข้อง' });
   }
 });
-
 // ==========================================
 // 🤖 2. LINE WEBHOOK (รับข้อความแชทจากผู้ใช้)
 // ==========================================
