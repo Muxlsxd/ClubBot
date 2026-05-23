@@ -76,17 +76,32 @@ app.post("/api", async (req, res) => {
     const gasRes = await axios.post(GAS_URL, payload);
     const result = gasRes.data;
 
-    console.log("Result from GAS:", result); // เปิดคอมเมนต์ตรงนี้เพื่อดู Log บน Render ว่า GAS ตอบอะไรกลับมา
+    console.log("Result from GAS:", result); 
 
-    // ตรวจสอบโครงสร้างเพื่อป้องกันอาการ undefined
-    if (!result || typeof result !== 'object') {
-      return res.json({ ok: false, error: 'ข้อมูลตอบกลับจาก Google Sheets ไม่ถูกต้อง' });
+    // --- 🌟 จุดที่เพิ่มเข้ามาเพื่อแปลงฟอร์แมตข้อมูล ---
+    // ถ้า GAS ตอบกลับมาว่า status === 'success' ให้สร้างตัวแปร ok: true ส่งไปให้หน้าบ้าน
+    let formattedResult = { ok: false, error: 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ' };
+    
+    if (result && result.status === 'success') {
+      formattedResult = {
+        ok: true,
+        task: result.data || {},     // เผื่อเป็นเคสสร้างงาน
+        users: result.data || [],    // เผื่อเป็นเคส listUsers
+        tasks: result.data || []     // เผื่อเป็นเคส myTasks
+      };
+    } else if (result && result.status === 'error') {
+      formattedResult = {
+        ok: false,
+        error: result.message || 'GAS หลังบ้านฟ้องว่ามี Error'
+      };
     }
+    // ---------------------------------------------
 
     // ถ้าสร้างงานสำเร็จ และเป็นงานแบบ "เปิดรับอาสา" ให้ยิง Flex Message ลงกลุ่ม
-    if (payload.action === 'createTask' && result.ok && payload.assigneeMode === 'open') {
-      const task = result.task;
-      const groupId = result.groupId; 
+    // (เปลี่ยนจาก result.ok เป็น formattedResult.ok และดึงจาก formattedResult.task)
+    if (payload.action === 'createTask' && formattedResult.ok && payload.assigneeMode === 'open') {
+      const task = formattedResult.task;
+      const groupId = result.groupId; // รหัสกลุ่มจากแท็บ Config ใน Google Sheets (ถ้ามีแนบมา)
       
       if (groupId) {
         const flexMsg = buildOpenTaskFlex(task);
@@ -95,14 +110,15 @@ app.post("/api", async (req, res) => {
       }
     }
 
-    // ตอบกลับผลลัพธ์ให้หน้าเว็บ LIFF (ต้องมั่นใจว่าเป็น JSON Object เสมอ)
-    res.json(result);
+    // ตอบกลับผลลัพธ์ที่แปลงฟอร์แมตแล้วให้หน้าเว็บ LIFF
+    res.json(formattedResult);
 
   } catch (error) {
     console.error("❌ API Error:", error.message);
     res.status(500).json({ ok: false, error: error.message || 'ระบบหลังบ้านขัดข้อง' });
   }
 });
+
 // ==========================================
 // 🤖 2. LINE WEBHOOK (รับข้อความแชทจากผู้ใช้)
 // ==========================================
