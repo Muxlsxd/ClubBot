@@ -84,7 +84,6 @@ app.post("/api", async (req, res) => {
     if (result && result.status === 'success') {
       formattedResult = {
         ok: true,
-        // แยกส่งข้อมูลกลับไปให้ตรงตามคำสั่ง (action) ที่หน้าบ้านต้องการแกะอ่าน
         task: payload.action === 'createTask' ? (result.data || {}) : {},
         users: payload.action === 'listUsers' ? (result.data || []) : [],
         tasks: payload.action === 'myTasks' ? (result.data || []) : []
@@ -95,7 +94,7 @@ app.post("/api", async (req, res) => {
         error: result.message || 'GAS หลังบ้านฟ้องว่ามี Error'
       };
     }
-
+    
     // ถ้าสร้างงานสำเร็จ และเป็นงานแบบ "เปิดรับอาสา" ให้ยิง Flex Message ลงกลุ่ม
     if (payload.action === 'createTask' && formattedResult.ok && payload.assigneeMode === 'open') {
       const task = formattedResult.task;
