@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 0;
+      background: #f6f7fb;
+      color: #111;
+    }
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 6px 22px rgba(0,0,0,.06);
+    }
+    h1, h2 { margin: 0 0 12px 0; }
+    label {
+      display: block;
+      margin-top: 10px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 12px;
+      border: 1px solid #d9dbe7;
+      padding: 12px;
+      margin-top: 6px;
+      font: inherit;
+      background: #fff;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    button {
+      border: 0;
+      background: #111827;
+      color: #fff;
+      font-weight: 700;
+      margin-top: 14px;
+      cursor: pointer;
+    }
+    .muted { color: #666; font-size: 13px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .ok { color: #0a7a2f; font-weight: 700; }
+    .err { color: #b00020; font-weight: 700; }
+    .task-list { display: grid; gap: 10px; margin-top: 10px; }
+    .task {
+      border: 1px solid #e5e7ef;
+      border-radius: 14px;
+      padding: 12px;
+      background: #fafbff;
+    }
+    .task b { display: block; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Club Management</h1>
+      <div class="muted" id="profileText">กำลังโหลดโปรไฟล์ LINE...</div>
+    </div>
+
+    <!-- 1. ฟอร์มลงทะเบียน -->
+    <div class="card">
+      <h2>ลงทะเบียนสมาชิก</h2>
+      <form id="registerForm">
+        <div class="row">
+          <div>
+            <label>ชื่อ-นามสกุล</label>
+            <input name="fullName" required>
+          </div>
+          <div>
+            <label>ชื่อเล่น</label>
+            <input name="nickname" required>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>ฝ่าย / แผนก</label>
+            <input name="department" placeholder="เช่น PR, IT, สถานที่" required>
+          </div>
+          <div>
+            <label>ตำแหน่ง</label>
+            <input name="position" placeholder="Member / Head" default="Member">
+          </div>
+        </div>
+
+        <input type="hidden" name="lineUid" id="regLineUid">
+        <button type="submit">บันทึกลงทะเบียน</button>
+      </form>
+      <div id="registerResult" class="muted"></div>
+    </div>
+
+    <!-- 2. ฟอร์มสร้างงาน -->
+    <div class="card">
+      <h2>สร้างงานใหม่</h2>
+      <form id="taskForm">
+        <label>ชื่องาน</label>
+        <input name="taskName" required>
+
+        <label>รายละเอียดงาน</label>
+        <textarea name="description"></textarea>
+
+        <div class="row">
+          <div>
+            <label>มอบหมายให้ฝ่าย</label>
+            <input name="department" placeholder="เช่น PR, IT, สถานที่" required>
+          </div>
+          <div>
+            <label>ระดับความสำคัญ</label>
+            <select name="priority">
+              <option>Low</option>
+              <option selected>Medium</option>
+              <option>High</option>
+              <option>Urgent</option>
+            </select>
+          </div>
+        </div>
+
+        <label>กำหนดส่ง (Due Date)</label>
+        <input name="dueDate" type="date" required>
+
+        <label>รูปแบบการมอบหมาย</label>
+        <select name="assigneeMode" id="assigneeMode">
+          <option value="open">เปิดรับอาสาสมัคร (ยิงเข้ากลุ่ม LINE)</option>
+          <option value="named">ระบุชื่อคนทำ (เลือกสมาชิก)</option>
+        </select>
+
+        <div id="assigneeBox" style="display:none;">
+          <label>เลือกผู้รับผิดชอบ</label>
+          <select name="assignedToUid" id="assignedToUid"></select>
+        </div>
+
+        <input type="hidden" name="createdBy" id="createdBy">
+        <input type="hidden" name="createdByUid" id="createdByUid">
+        <button type="submit">สร้างงานและแจ้งเตือน</button>
+      </form>
+      <div id="taskResult" class="muted"></div>
+    </div>
+
+    <!-- 3. รายการงานของฉัน -->
+    <div class="card">
+      <h2>งานที่ฉันรับผิดชอบ</h2>
+      <button id="refreshTasks" type="button">🔄 รีเฟรชรายการงาน</button>
+      <div id="myTasks" class="task-list"></div>
+    </div>
+
+    <!-- 4. ฟอร์มแปลงสถานะงาน -->
+    <div class="card">
+      <h2>อัปเดตสถานะงาน</h2>
+      <form id="updateForm">
+        <label>Task ID</label>
+        <input name="taskId" id="updateTaskId" required readonly placeholder="คลิกเลือกงานจากรายการด้านบน">
+
+        <label>เปลี่ยนสถานะเป็น</label>
+        <select name="status">
+          <option>InProgress</option>
+          <option>Blocked</option>
+          <option selected>Done</option>
+          <option>Cancelled</option>
+        </select>
+
+        <label>หมายเหตุ / โน้ตเพิ่มเติม</label>
+        <textarea name="note"></textarea>
+
+        <button type="submit">บันทึกการอัปเดต</button>
+      </form>
+      <div id="updateResult" class="muted"></div>
+    </div>
+  </div>
+
+  <script>
+    const profileText = document.getElementById('profileText');
+    const regLineUid = document.getElementById('regLineUid');
+    const createdBy = document.getElementById('createdBy');
+    const createdByUid = document.getElementById('createdByUid');
+    const assignedToUid = document.getElementById('assignedToUid');
+    const assigneeMode = document.getElementById('assigneeMode');
+    const assigneeBox = document.getElementById('assigneeBox');
+    const myTasks = document.getElementById('myTasks');
+
+    let me = null;
+
+    // ฟังก์ชันยิงคุยกับ Node.js หลังบ้านเรา (ผ่าน Path /api)
+    async function api(action, body = {}) {
+      const res = await fetch(`/api`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...body })
+      });
+      return await res.json();
+    }
+
+    // เริ่มต้นระบบ LIFF
+    async function init() {
+      // ⚠️ สำคัญมาก: เอา LIFF ID จากหน้า LINE Developer มาใส่ตรงนี้แทน 'YOUR_LIFF_ID'
+      await liff.init({ liffId: '2010171319-IYA27i86' });
+
+      if (!liff.isLoggedIn()) {
+        liff.login();
+        return;
+      }
+
+      me = await liff.getProfile();
+      profileText.textContent = `ผู้ใช้งาน: ${me.displayName} | UID: ${me.userId}`;
+      regLineUid.value = me.userId;
+      createdBy.value = me.displayName;
+      createdByUid.value = me.userId;
+
+      await loadUsers();
+      await loadMyTasks();
+    }
+
+    async function loadUsers() {
+      const res = await api('listUsers');
+      assignedToUid.innerHTML = '<option value="">-- เลือกสมาชิก --</option>';
+      if (res.ok && Array.isArray(res.users)) {
+        res.users.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u.LINE_UID;
+          opt.textContent = `${u.Nickname || u.Full_Name} (${u.Department})`;
+          assignedToUid.appendChild(opt);
+        });
+      }
+    }
+
+    async function loadMyTasks() {
+      myTasks.innerHTML = 'กำลังโหลดงานของคุณ...';
+      const res = await api('myTasks', { lineUid: me.userId });
+      if (!res.ok) {
+        myTasks.innerHTML = `<div class="err">${res.error}</div>`;
+        return;
+      }
+      if (!res.tasks.length) {
+        myTasks.innerHTML = '<div class="muted">คุณยังไม่มีงานที่ต้องรับผิดชอบในขณะนี้</div>';
+        return;
+      }
+      myTasks.innerHTML = '';
+      res.tasks.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'task';
+        div.style.cursor = 'pointer';
+        div.innerHTML = `
+          <b>📌 ${escapeHtml(t.Task_Name)}</b>
+          <div class="muted">Task ID: ${escapeHtml(t.Task_ID)} | สถานะ: ${escapeHtml(t.Status)}</div>
+          <div class="muted">กำหนดส่ง: ${escapeHtml(t.Due_Date)}</div>
+        `;
+        // คลิกที่งานเพื่อดึง ID ลงฟอร์มอัปเดตสถานะอัตโนมัติ
+        div.addEventListener('click', () => {
+          document.getElementById('updateTaskId').value = t.Task_ID;
+          document.getElementById('updateForm').scrollIntoView({ behavior: 'smooth' });
+        });
+        myTasks.appendChild(div);
+      });
+    }
+
+    assigneeMode.addEventListener('change', () => {
+      assigneeBox.style.display = assigneeMode.value === 'named' ? 'block' : 'none';
+    });
+
+    // Event สั่งบันทึกข้อมูลลงทะเบียน
+    document.getElementById('registerForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const payload = Object.fromEntries(fd.entries());
+      const res = await api('register', payload);
+      document.getElementById('registerResult').innerHTML = res.ok
+        ? '<span class="ok">ลงทะเบียนสมาชิกสำเร็จแล้ว!</span>'
+        : `<span class="err">ล้มเหลว: ${escapeHtml(res.error)}</span>`;
+      if(res.ok) await loadUsers();
+    });
+
+    // Event สั่งสร้างงานใหม่
+    document.getElementById('taskForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const payload = Object.fromEntries(fd.entries());
+      payload.createdBy = me.displayName;
+      payload.createdByUid = me.userId;
+      
+      if (payload.assigneeMode === 'open') {
+        payload.assignedTo = 'OPEN';
+        payload.assignedToUid = '';
+      } else {
+        payload.assignedToUid = payload.assignedToUid || '';
+        payload.assignedTo = assignedToUid.options[assignedToUid.selectedIndex]?.textContent || '';
+      }
+
+      const res = await api('createTask', payload);
+      document.getElementById('taskResult').innerHTML = res.ok
+        ? `<span class="ok">สร้างงานสำเร็จ! ได้รหัสงาน: ${escapeHtml(res.task.Task_ID)}</span>`
+        : `<span class="err">ล้มเหลว: ${escapeHtml(res.error)}</span>`;
+
+      if (res.ok) {
+        ev.target.reset();
+        assigneeBox.style.display = 'none';
+        await loadMyTasks();
+      }
+    });
+
+    // Event สั่งอัปเดตสถานะงาน
+    document.getElementById('updateForm').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(ev.target);
+      const payload = Object.fromEntries(fd.entries());
+      payload.lineUid = me.userId;
+      
+      const res = await api('updateTask', payload);
+      document.getElementById('updateResult').innerHTML = res.ok
+        ? '<span class="ok">อัปเดตสถานะงานเรียบร้อย!</span>'
+        : `<span class="err">ล้มเหลว: ${escapeHtml(res.error)}</span>`;
+      if(res.ok) {
+        ev.target.reset();
+        await loadMyTasks();
+      }
+    });
+
+    document.getElementById('refreshTasks').addEventListener('click', loadMyTasks);
+
+    function escapeHtml(str) {
+      return String(str).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+    }
+
+    init().catch(err => {
+      profileText.textContent = 'การโหลด LIFF ผิดพลาด: ' + err.message;
+    });
+  </script>
+</body>
+</html>
