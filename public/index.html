@@ -192,15 +192,26 @@
 
     let me = null;
 
-    // ฟังก์ชันยิงคุยกับ Node.js หลังบ้านเรา (ผ่าน Path /api)
-    async function api(action, body = {}) {
-      const res = await fetch(`/api`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, ...body })
-      });
-      return await res.json();
+    // แก้ไขฟังก์ชัน api ใน public/index.html ให้ระบุ URL เต็ม
+async function api(action, body = {}) {
+  try {
+    // ใส่ลิงก์ Render ของคุณเข้าไปตรงๆ เลยครับ
+    const res = await fetch(`https://clubbot-ssck.onrender.com/api`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...body })
+    });
+    
+    if (!res.ok) {
+      return { ok: false, error: `HTTP error! status: ${res.status}` };
     }
+    
+    return await res.json();
+  } catch (err) {
+    console.error("Fetch error:", err);
+    return { ok: false, error: err.message || "Network connection error" };
+  }
+}
 
     // เริ่มต้นระบบ LIFF
     async function init() {
