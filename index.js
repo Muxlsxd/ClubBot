@@ -4,16 +4,12 @@ const axios = require("axios");
 
 const app = express();
 
-// อนุญาตให้อ่านข้อมูล JSON และเปิดโฟลเดอร์ public สำหรับหน้าเว็บ LIFF
 app.use(express.json());
 app.use(express.static("public"));
 
 const LINE_TOKEN = process.env.CHANNEL_ACCESS_TOKEN;
 const GAS_URL = process.env.GAS_API_URL;
 
-// ==========================================
-// 🛠️ ฟังก์ชันผู้ช่วย: ยิงข้อความ LINE
-// ==========================================
 async function callLineApi(mode, body) {
   const url = mode === 'reply' 
     ? 'https://api.line.me/v2/bot/message/reply' 
@@ -31,7 +27,6 @@ async function callLineApi(mode, body) {
   }
 }
 
-// สร้างหน้าตาการ์ด Flex Message เวลามีคนเปิดรับอาสาสมัคร
 function buildOpenTaskFlex(task) {
   return {
     type: 'flex',
@@ -65,11 +60,9 @@ function buildOpenTaskFlex(task) {
   };
 }
 
-// ==========================================
-// 🗂️ แผนผัง Group ID สำหรับส่งแจ้งเตือนเข้ากลุ่ม
-// ==========================================
 const GROUP_ID_MAP = {
-  "ทะเบียน": "C43a4ea76f61d7ae6bc36e5b32a5817a4", // <--- เอา Group ID มาวางตรงนี้ครับ
+  "กลุ่มรวม": "C601df0ff42d495765355bcc4b1061acd", // <--- เอา Group ID ของกลุ่มรวมสโมสรมาวาง
+  "ทะเบียน": "C43a4ea76f61d7ae6bc36e5b32a5817a4", 
   "ประธานโครงการ": "",
   "รองประธานโครงการ": "",
   "เลขานุการ": "",
@@ -89,14 +82,10 @@ const GROUP_ID_MAP = {
   "ประชาสัมพันธ์": ""
 };
 
-// ==========================================
-// 🌐 1. API หน้าบ้าน (รับข้อมูลจากหน้าเว็บ LIFF)
-// ==========================================
 app.post("/api", async (req, res) => {
   try {
     const payload = req.body;
     
-    // ส่งข้อมูลไปหา Google Apps Script
     const gasRes = await axios.post(GAS_URL, payload);
     const result = gasRes.data;
 
@@ -105,7 +94,8 @@ app.post("/api", async (req, res) => {
     if (result && result.status === 'success') {
       formattedResult = {
         ok: true,
-        task: payload.action === 'createTask' ? (result.data || {}) : {},
+        // 🌟 ดึง task data ให้รองรับทั้ง createTask และ updateTask
+        task: (payload.action === 'createTask' || payload.action === 'updateTask') ? (result.data || {}) : {},
         users: payload.action === 'listUsers' ? (result.data || []) : [],
         tasks: payload.action === 'myTasks' ? (result.data || []) : []
       };
@@ -116,13 +106,14 @@ app.post("/api", async (req, res) => {
       };
     }
 
-    // 🌟 ระบบแจ้งเตือนเมื่อสร้างงานสำเร็จ (ปรับปรุงใหม่ให้รองรับทั้ง 2 แบบ)
+    // ==========================================
+    // 🔔 1. ระบบแจ้งเตือนเมื่อ "สร้างงาน"
+    // ==========================================
     if (payload.action === 'createTask' && formattedResult.ok) {
       const task = formattedResult.task;
       const targetGroupId = GROUP_ID_MAP[task.Department]; 
       
       if (payload.assigneeMode === 'open') {
-        // --- กรณีเปิดรับอาสาสมัคร (ส่ง Flex Message เข้ากลุ่ม) ---
         if (targetGroupId && targetGroupId.startsWith("C")) {
           const flexMsg = buildOpenTaskFlex(task);
           await callLineApi('push', { to: targetGroupId, messages: [flexMsg] });
@@ -132,29 +123,52 @@ app.post("/api", async (req, res) => {
         }
       } 
       else if (payload.assigneeMode === 'named') {
-        // --- กรณีมอบหมายรายบุคคล (แจ้งส่วนตัว + แจ้งเข้ากลุ่ม) ---
         const targetUserId = payload.assignedToUid;
         const assigneeName = payload.assignedTo;
 
-        // 1. แจ้งเตือนแชทส่วนตัวของคนทำ
         if (targetUserId) {
           await callLineApi('push', {
             to: targetUserId,
             messages: [{ type: "text", text: `🔔 คุณได้รับมอบหมายงานใหม่!\n📌 ชื่องาน: ${task.Task_Name}\n📅 กำหนดส่ง: ${task.Due_Date}\n📝 รายละเอียด: ${task.Description || '-'}` }]
           });
-          console.log(`✅ ส่งแจ้งเตือนส่วนตัวหา ${assigneeName} สำเร็จ`);
         }
-
-        // 2. แจ้งเตือนเข้ากลุ่มฝ่ายเพื่อให้ทีมทราบ
         if (targetGroupId && targetGroupId.startsWith("C")) {
           await callLineApi('push', {
             to: targetGroupId,
             messages: [{ type: "text", text: `📢 มีงานใหม่ถูกมอบหมายแล้ว!\n📌 งาน: ${task.Task_Name}\n👤 ผู้รับผิดชอบ: ${assigneeName}` }]
           });
-          console.log(`✅ ประกาศงานมอบหมายรายคนเข้ากลุ่ม ${task.Department} สำเร็จ`);
-        } else {
-          console.log(`⚠️ ไม่ได้ประกาศลงกลุ่ม: ยังไม่ได้ตั้งค่า Group ID ให้กับฝ่าย ${task.Department}`);
         }
+      }
+    }
+
+    // ==========================================
+    // 🔔 2. ระบบแจ้งเตือนเมื่อ "ส่งงานเสร็จ (Done)"
+    // ==========================================
+    if (payload.action === 'updateTask' && formattedResult.ok && payload.status === 'Done') {
+      const task = formattedResult.task;
+      const mainGroupId = GROUP_ID_MAP["กลุ่มรวม"]; 
+      const creatorUid = task.Created_By; // คนสั่งงาน
+      
+      // จัดข้อความลิงก์ส่งงาน และหมายเหตุ (รับมาจากฟอร์มหน้าเว็บ)
+      let linkText = payload.workLink ? `\n🔗 ลิงก์ส่งงาน: ${payload.workLink}` : '';
+      let noteText = payload.note ? `\n📝 หมายเหตุ: ${payload.note}` : '';
+
+      // 2.1 ประกาศลง "กลุ่มรวม"
+      if (mainGroupId && mainGroupId.startsWith("C")) {
+        await callLineApi('push', {
+          to: mainGroupId,
+          messages: [{ type: "text", text: `✅ [อัปเดตงานเสร็จสิ้น]\n📌 งาน: ${task.Task_Name}\n🏢 ฝ่าย: ${task.Department}${linkText}${noteText}` }]
+        });
+        console.log("✅ ประกาศงานเสร็จเข้ากลุ่มใหญ่สำเร็จ");
+      }
+
+      // 2.2 ทักแชทไปบอก "คนสั่งงาน" โดยตรง
+      if (creatorUid && creatorUid.startsWith("U")) {
+        await callLineApi('push', {
+          to: creatorUid,
+          messages: [{ type: "text", text: `🔔 งานที่คุณสั่งไว้สำเร็จแล้ว!\n📌 งาน: ${task.Task_Name}\n🏢 ฝ่าย: ${task.Department}${linkText}${noteText}` }]
+        });
+        console.log("✅ แจ้งเตือนคนสั่งงานส่วนตัวสำเร็จ");
       }
     }
 
@@ -166,14 +180,10 @@ app.post("/api", async (req, res) => {
   }
 });
 
-// ==========================================
-// 🤖 2. LINE WEBHOOK (รับข้อความแชทจากผู้ใช้)
-// ==========================================
 app.post("/webhook", async (req, res) => {
   const events = req.body.events || [];
 
   for (const event of events) {
-    // ---- กรณีผู้ใช้พิมพ์ข้อความมา ----
     if (event.type === "message" && event.message.type === "text") {
       const text = event.message.text.trim().toLowerCase();
       
@@ -197,7 +207,6 @@ app.post("/webhook", async (req, res) => {
       }
     }
 
-    // ---- กรณีผู้ใช้กดปุ่ม "รับงานนี้" จากการ์ด Flex Message ----
     if (event.type === "postback") {
       const params = new URLSearchParams(event.postback.data);
       const action = params.get("action");
@@ -209,10 +218,8 @@ app.post("/webhook", async (req, res) => {
           const gasRes = await axios.post(GAS_URL, { action: "claimTask", taskId: taskId, userId: userId });
           const result = gasRes.data;
           
-          // ตรวจสอบว่า GAS ส่ง success กลับมาหรือไม่
           const isSuccess = result && result.status === 'success';
 
-          // แจ้งเตือนส่วนตัว
           const replyText = isSuccess 
             ? `🎉 รับงานสำเร็จ: ${result.task.Task_Name}`
             : `❌ ไม่สามารถรับงานได้: ${result.message || 'ระบบขัดข้อง'}`;
@@ -222,7 +229,6 @@ app.post("/webhook", async (req, res) => {
             messages: [{ type: "text", text: replyText }]
           });
 
-          // ประกาศลงกลุ่มเดิม
           const sourceTarget = event.source.groupId || event.source.roomId;
           if (isSuccess && sourceTarget) {
             const claimer = result.task.Assigned_To || 'สมาชิก';
@@ -240,9 +246,6 @@ app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
 });
 
-// ==========================================
-// 🚀 START SERVER
-// ==========================================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Club Bot Server Online on Port ${PORT}`);
