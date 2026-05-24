@@ -123,7 +123,7 @@ app.post("/webhook", async (req, res) => {
   const events = req.body.events || [];
 
   for (const event of events) {
-// ---- กรณีผู้ใช้พิมพ์ข้อความมา ----
+    // ---- กรณีผู้ใช้พิมพ์ข้อความมา ----
     if (event.type === "message" && event.message.type === "text") {
       const text = event.message.text.trim().toLowerCase();
       
@@ -134,12 +134,11 @@ app.post("/webhook", async (req, res) => {
         });
       }
 
-      // 🌟 เพิ่มโค้ดเช็ค Group ID ตรงนี้ครับ 🌟
       if (text === "/groupid" || text === "ขอไอดีกลุ่ม") {
         const groupId = event.source.groupId;
         const replyText = groupId 
           ? `รหัสกลุ่มนี้คือ:\n${groupId}` 
-          : "คุณต้องพิมพ์คำสั่งนี้ใน 'แชทกลุ่ม' เท่านั้นนะครับ (พิมพ์ในแชทส่วนตัวไม่ได้)";
+          : "คุณต้องพิมพ์คำสั่งนี้ใน 'แชทกลุ่ม' เท่านั้นนะครับ";
           
         await callLineApi('reply', {
           replyToken: event.replyToken,
@@ -147,7 +146,7 @@ app.post("/webhook", async (req, res) => {
         });
       }
     }
-    
+
     // ---- กรณีผู้ใช้กดปุ่ม "รับงานนี้" จากการ์ด Flex Message ----
     if (event.type === "postback") {
       const params = new URLSearchParams(event.postback.data);
@@ -157,31 +156,29 @@ app.post("/webhook", async (req, res) => {
 
       if (action === "claimTask") {
         try {
-          // ส่งคำสั่งให้ GAS เปลี่ยนสถานะงานใน Sheet
-          const gasRes = await axios.post(GAS_URL, {
-            action: "claimTask",
-            taskId: taskId,
-            userId: userId
-          });
+          const gasRes = await axios.post(GAS_URL, { action: "claimTask", taskId: taskId, userId: userId });
           const result = gasRes.data;
+          
+          // ตรวจสอบว่า GAS ส่ง success กลับมาหรือไม่
+          const isSuccess = result && result.status === 'success';
 
-          // แจ้งเตือนแบบส่วนตัวให้คนที่กดรับงาน
-          const replyText = result.ok 
+          // แจ้งเตือนส่วนตัว
+          const replyText = isSuccess 
             ? `🎉 รับงานสำเร็จ: ${result.task.Task_Name}`
-            : `❌ ไม่สามารถรับงานได้: ${result.error}`;
+            : `❌ ไม่สามารถรับงานได้: ${result.message || 'ระบบขัดข้อง'}`;
             
           await callLineApi('reply', {
             replyToken: event.replyToken,
             messages: [{ type: "text", text: replyText }]
           });
 
-          // ประกาศความเท่ลงในกลุ่มเดิมที่กดปุ่ม
+          // ประกาศลงกลุ่มเดิม
           const sourceTarget = event.source.groupId || event.source.roomId;
-          if (result.ok && sourceTarget) {
+          if (isSuccess && sourceTarget) {
             const claimer = result.task.Assigned_To || 'สมาชิก';
             await callLineApi('push', {
               to: sourceTarget,
-              messages: [{ type: "text", text: `🎉 ${claimer} เป็นฮีโร่รับงานนี้ไปแล้ว!\n📌 งาน: ${result.task.Task_Name}` }]
+              messages: [{ type: "text", text: `🎉 คุณ ${claimer} เป็นฮีโร่รับงานนี้ไปแล้ว!\n📌 งาน: ${result.task.Task_Name}` }]
             });
           }
         } catch (error) {
@@ -190,11 +187,8 @@ app.post("/webhook", async (req, res) => {
       }
     }
   }
-
-  // ส่งสถานะ 200 กลับให้เซิร์ฟเวอร์ LINE เสมอ (ห้ามลบ)
   res.sendStatus(200);
 });
-
 // ==========================================
 // 🚀 START SERVER
 // ==========================================
