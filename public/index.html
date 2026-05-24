@@ -201,7 +201,7 @@
       <div id="myTasks" class="task-list"></div>
     </div>
 
-    <!-- 4. ฟอร์มแปลงสถานะงาน -->
+<!-- 4. ฟอร์มแปลงสถานะงาน -->
     <div class="card">
       <h2>อัปเดตสถานะงาน</h2>
       <form id="updateForm">
@@ -219,11 +219,14 @@
         <label>หมายเหตุ / โน้ตเพิ่มเติม</label>
         <textarea name="note"></textarea>
 
+        <!-- 🌟 เพิ่มช่องใส่ลิงก์ตรงนี้ 🌟 -->
+        <label>🔗 แนบลิงก์ส่งงาน (ถ้ามี)</label>
+        <input name="workLink" type="url" placeholder="เช่น ลิงก์ Google Drive, Canva">
+
         <button type="submit">บันทึกการอัปเดต</button>
       </form>
       <div id="updateResult" class="muted"></div>
     </div>
-  </div>
 
   <script>
     const profileText = document.getElementById('profileText');
