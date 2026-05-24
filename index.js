@@ -116,18 +116,45 @@ app.post("/api", async (req, res) => {
       };
     }
 
-    // 🌟 ดึง Group ID จาก Map ของเราแทน GAS
-    if (payload.action === 'createTask' && formattedResult.ok && payload.assigneeMode === 'open') {
+    // 🌟 ระบบแจ้งเตือนเมื่อสร้างงานสำเร็จ (ปรับปรุงใหม่ให้รองรับทั้ง 2 แบบ)
+    if (payload.action === 'createTask' && formattedResult.ok) {
       const task = formattedResult.task;
       const targetGroupId = GROUP_ID_MAP[task.Department]; 
       
-      // เช็คว่ามี Group ID ระบุไว้ไหม และขึ้นต้นด้วย C หรือไม่
-      if (targetGroupId && targetGroupId.startsWith("C")) {
-        const flexMsg = buildOpenTaskFlex(task);
-        await callLineApi('push', { to: targetGroupId, messages: [flexMsg] });
-        console.log(`✅ ส่งการ์ดแจ้งเตือนไปที่กลุ่ม ${task.Department} สำเร็จ`);
-      } else {
-        console.log(`⚠️ ไม่ได้ส่งการ์ด: ยังไม่ได้ตั้งค่า Group ID ให้กับฝ่าย ${task.Department}`);
+      if (payload.assigneeMode === 'open') {
+        // --- กรณีเปิดรับอาสาสมัคร (ส่ง Flex Message เข้ากลุ่ม) ---
+        if (targetGroupId && targetGroupId.startsWith("C")) {
+          const flexMsg = buildOpenTaskFlex(task);
+          await callLineApi('push', { to: targetGroupId, messages: [flexMsg] });
+          console.log(`✅ ส่งการ์ดแจ้งเตือนไปที่กลุ่ม ${task.Department} สำเร็จ`);
+        } else {
+          console.log(`⚠️ ไม่ได้ส่งการ์ด: ยังไม่ได้ตั้งค่า Group ID ให้กับฝ่าย ${task.Department}`);
+        }
+      } 
+      else if (payload.assigneeMode === 'named') {
+        // --- กรณีมอบหมายรายบุคคล (แจ้งส่วนตัว + แจ้งเข้ากลุ่ม) ---
+        const targetUserId = payload.assignedToUid;
+        const assigneeName = payload.assignedTo;
+
+        // 1. แจ้งเตือนแชทส่วนตัวของคนทำ
+        if (targetUserId) {
+          await callLineApi('push', {
+            to: targetUserId,
+            messages: [{ type: "text", text: `🔔 คุณได้รับมอบหมายงานใหม่!\n📌 ชื่องาน: ${task.Task_Name}\n📅 กำหนดส่ง: ${task.Due_Date}\n📝 รายละเอียด: ${task.Description || '-'}` }]
+          });
+          console.log(`✅ ส่งแจ้งเตือนส่วนตัวหา ${assigneeName} สำเร็จ`);
+        }
+
+        // 2. แจ้งเตือนเข้ากลุ่มฝ่ายเพื่อให้ทีมทราบ
+        if (targetGroupId && targetGroupId.startsWith("C")) {
+          await callLineApi('push', {
+            to: targetGroupId,
+            messages: [{ type: "text", text: `📢 มีงานใหม่ถูกมอบหมายแล้ว!\n📌 งาน: ${task.Task_Name}\n👤 ผู้รับผิดชอบ: ${assigneeName}` }]
+          });
+          console.log(`✅ ประกาศงานมอบหมายรายคนเข้ากลุ่ม ${task.Department} สำเร็จ`);
+        } else {
+          console.log(`⚠️ ไม่ได้ประกาศลงกลุ่ม: ยังไม่ได้ตั้งค่า Group ID ให้กับฝ่าย ${task.Department}`);
+        }
       }
     }
 
@@ -212,6 +239,7 @@ app.post("/webhook", async (req, res) => {
   }
   res.sendStatus(200);
 });
+
 // ==========================================
 // 🚀 START SERVER
 // ==========================================
