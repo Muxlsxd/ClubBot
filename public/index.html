@@ -76,12 +76,37 @@
       <form id="registerForm">
         <div class="row">
           <div>
-            <label>ชื่อ-นามสกุล</label>
-            <input name="fullName" required>
+            <label>ฝ่าย / แผนก</label>
+            <select name="department" required>
+              <option value="" disabled selected>-- เลือกฝ่าย --</option>
+              <option value="ประธานโครงการ">ประธานโครงการ</option>
+              <option value="รองประธานโครงการ">รองประธานโครงการ</option>
+              <option value="เลขานุการ">เลขานุการ</option>
+              <option value="เหรัญญิก">เหรัญญิก</option>
+              <option value="ทะเบียน">ทะเบียน</option>
+              <option value="สวัสดิการ">สวัสดิการ</option>
+              <option value="พัสดุ">พัสดุ</option>
+              <option value="Run script">Run script</option>
+              <option value="ช่างภาพ">ช่างภาพ</option>
+              <option value="วิชาการ">วิชาการ</option>
+              <option value="นันทนาการ">นันทนาการ</option>
+              <option value="ศิลป์">ศิลป์</option>
+              <option value="เอกสาร">เอกสาร</option>
+              <option value="พยาบาล">พยาบาล</option>
+              <option value="สถานที่">สถานที่</option>
+              <option value="กราฟฟิก">กราฟฟิก</option>
+              <option value="สปอนเซอร์">สปอนเซอร์</option>
+              <option value="ประชาสัมพันธ์">ประชาสัมพันธ์</option>
+            </select>
           </div>
           <div>
-            <label>ชื่อเล่น</label>
-            <input name="nickname" required>
+            <label>ตำแหน่ง</label>
+            <select name="position" required>
+              <option value="" disabled selected>-- เลือกตำแหน่ง --</option>
+              <option value="หัวหน้าฝ่าย (Head)">หัวหน้าฝ่าย (Head)</option>
+              <option value="รองหัวหน้าฝ่าย (Co-Head)">รองหัวหน้าฝ่าย (Co-Head)</option>
+              <option value="สมาชิก (Member)">สมาชิก (Member)</option>
+            </select>
           </div>
         </div>
 
