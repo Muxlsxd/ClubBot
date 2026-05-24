@@ -141,13 +141,13 @@ app.post("/api", async (req, res) => {
       }
     }
 
-    // ==========================================
+// ==========================================
     // 🔔 2. ระบบแจ้งเตือนเมื่อ "ส่งงานเสร็จ (Done)"
     // ==========================================
     if (payload.action === 'updateTask' && formattedResult.ok && payload.status === 'Done') {
       const task = formattedResult.task;
       const mainGroupId = GROUP_ID_MAP["กลุ่มรวม"]; 
-      const creatorUid = task.Created_By; // คนสั่งงาน
+      const creatorUid = task.Created_By_Uid; // 🌟 แก้ตรงนี้: ดึงค่าจาก Created_By_Uid แทน
       
       // จัดข้อความลิงก์ส่งงาน และหมายเหตุ (รับมาจากฟอร์มหน้าเว็บ)
       let linkText = payload.workLink ? `\n🔗 ลิงก์ส่งงาน: ${payload.workLink}` : '';
