@@ -66,6 +66,30 @@ function buildOpenTaskFlex(task) {
 }
 
 // ==========================================
+// 🗂️ แผนผัง Group ID สำหรับส่งแจ้งเตือนเข้ากลุ่ม
+// ==========================================
+const GROUP_ID_MAP = {
+  "ทะเบียน": "C43a4ea76f61d7ae6bc36e5b32a5817a4", // <--- เอา Group ID มาวางตรงนี้ครับ
+  "ประธานโครงการ": "",
+  "รองประธานโครงการ": "",
+  "เลขานุการ": "",
+  "เหรัญญิก": "",
+  "สวัสดิการ": "",
+  "พัสดุ": "",
+  "Run script": "",
+  "ช่างภาพ": "",
+  "วิชาการ": "",
+  "นันทนาการ": "",
+  "ศิลป์": "",
+  "เอกสาร": "",
+  "พยาบาล": "",
+  "สถานที่": "",
+  "กราฟฟิก": "",
+  "สปอนเซอร์": "",
+  "ประชาสัมพันธ์": ""
+};
+
+// ==========================================
 // 🌐 1. API หน้าบ้าน (รับข้อมูลจากหน้าเว็บ LIFF)
 // ==========================================
 app.post("/api", async (req, res) => {
@@ -76,9 +100,6 @@ app.post("/api", async (req, res) => {
     const gasRes = await axios.post(GAS_URL, payload);
     const result = gasRes.data;
 
-    console.log("Result from GAS:", result); 
-
-    // เริ่มต้นตัวแปรโครงสร้างเพื่อให้หน้าบ้านอ่านง่าย
     let formattedResult = { ok: false, error: 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ' };
     
     if (result && result.status === 'success') {
@@ -94,20 +115,22 @@ app.post("/api", async (req, res) => {
         error: result.message || 'GAS หลังบ้านฟ้องว่ามี Error'
       };
     }
-    
-    // ถ้าสร้างงานสำเร็จ และเป็นงานแบบ "เปิดรับอาสา" ให้ยิง Flex Message ลงกลุ่ม
+
+    // 🌟 ดึง Group ID จาก Map ของเราแทน GAS
     if (payload.action === 'createTask' && formattedResult.ok && payload.assigneeMode === 'open') {
       const task = formattedResult.task;
-      const groupId = result.groupId; 
+      const targetGroupId = GROUP_ID_MAP[task.Department]; 
       
-      if (groupId) {
+      // เช็คว่ามี Group ID ระบุไว้ไหม และขึ้นต้นด้วย C หรือไม่
+      if (targetGroupId && targetGroupId.startsWith("C")) {
         const flexMsg = buildOpenTaskFlex(task);
-        await callLineApi('push', { to: groupId, messages: [flexMsg] });
-        console.log(`✅ ส่งการ์ดแจ้งเตือนไปที่กลุ่มสำเร็จ`);
+        await callLineApi('push', { to: targetGroupId, messages: [flexMsg] });
+        console.log(`✅ ส่งการ์ดแจ้งเตือนไปที่กลุ่ม ${task.Department} สำเร็จ`);
+      } else {
+        console.log(`⚠️ ไม่ได้ส่งการ์ด: ยังไม่ได้ตั้งค่า Group ID ให้กับฝ่าย ${task.Department}`);
       }
     }
 
-    // ส่งชุดข้อมูลที่ประกอบร่างตรงกับหน้าบ้านต้องการกลับไป
     res.json(formattedResult);
 
   } catch (error) {
